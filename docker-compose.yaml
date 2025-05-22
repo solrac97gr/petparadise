@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:3000
+    networks:
+      - pet-paradise-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "3001:3000"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=petparadise
+    networks:
+      - pet-paradise-network
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=petparadise
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pet-paradise-network
+
+networks:
+  pet-paradise-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
