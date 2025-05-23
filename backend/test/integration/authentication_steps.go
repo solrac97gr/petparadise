@@ -10,10 +10,11 @@ import (
 
 // AuthSteps contains authentication test steps
 type AuthSteps struct {
-	client           *APIClient
-	credentialsValid bool
-	testEmail        string
-	testPassword     string
+	client               *APIClient
+	credentialsValid     bool
+	testEmail            string
+	testPassword         string
+	explicitRefreshToken string // Added to store an explicitly set refresh token
 }
 
 // RegisterAuthenticationSteps registers step definitions for authentication scenarios
@@ -93,17 +94,9 @@ func (s *AuthSteps) iHaveValidRefreshToken() error {
 }
 
 func (s *AuthSteps) iHaveExpiredRefreshToken() error {
-	// For testing an expired refresh token, we'll use a token that's either:
-	// 1. Malformed/invalid
-	// 2. A token that was generated in the past and is now expired
-	// For simplicity, we'll use a malformed token that will be rejected
-
-	// Make a POST request with an invalid/expired refresh token
-	refreshData := map[string]string{
-		"refresh_token": "expired.or.invalid.token",
-	}
-
-	return s.client.Post("/users/refresh", refreshData)
+	// Set an expired/invalid token to be used by a subsequent step
+	s.explicitRefreshToken = "expired.or.invalid.token"
+	return nil
 }
 
 func (s *AuthSteps) iHaveValidAccessToken() error {
@@ -144,36 +137,41 @@ func (s *AuthSteps) iLoginWithMyCredentials() error {
 }
 
 func (s *AuthSteps) iRequestToRefreshMyTokens() error {
-	// Extract refresh token from current response (from login)
-	respBody := s.client.GetResponseBodyAsMap()
-	if respBody == nil {
-		return fmt.Errorf("no response body available")
+	var tokenForRefresh string
+
+	if s.explicitRefreshToken != "" {
+		tokenForRefresh = s.explicitRefreshToken
+		s.explicitRefreshToken = "" // Consume the explicitly set token
+	} else {
+		// Fallback to getting token from previous response (e.g., after a login)
+		respBody := s.client.GetResponseBodyAsMap()
+		if respBody == nil {
+			return fmt.Errorf("no response body available to extract refresh token for refresh request")
+		}
+		tokensObj, ok := respBody["tokens"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("tokens object not found in previous response to extract refresh token")
+		}
+		refreshTokenFromResponse, ok := tokensObj["refresh_token"].(string)
+		if !ok {
+			return fmt.Errorf("refresh_token not found or not a string in previous response")
+		}
+		tokenForRefresh = refreshTokenFromResponse
 	}
 
-	// Check for tokens object
-	tokensObj, ok := respBody["tokens"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("tokens object not found in response")
-	}
-
-	// Extract refresh token
-	refreshToken, ok := tokensObj["refresh_token"].(string)
-	if !ok {
-		return fmt.Errorf("refresh_token not found or not a string")
+	if tokenForRefresh == "" {
+		return fmt.Errorf("no refresh token available to make the refresh request")
 	}
 
 	// Prepare refresh request
 	refreshData := map[string]string{
-		"refresh_token": refreshToken,
+		"refresh_token": tokenForRefresh,
 	}
 
 	// Send refresh request
-	err := s.client.Post("/users/refresh", refreshData)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// The client.Post method should handle storing the response (status code, body)
+	// so subsequent "Then" steps can assert on it.
+	return s.client.Post("/users/refresh", refreshData)
 }
 
 func (s *AuthSteps) iLogout() error {
@@ -286,7 +284,7 @@ func (s *AuthSteps) theResponseShouldContain(text string) error {
 	}
 
 	if !bytes.Contains(body, []byte(text)) {
-		return fmt.Errorf("response does not contain %q", text)
+		return fmt.Errorf("response does not contain %q. Actual response: %s", text, string(body))
 	}
 
 	return nil

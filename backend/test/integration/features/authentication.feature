@@ -27,7 +27,7 @@ Feature: Authentication
     When I request to refresh my tokens
     Then I should receive an authentication error
     And I should receive a 401 status code
-    And the response should contain "Refresh token has expired"
+    And the response should contain "Invalid refresh token"
 
   Scenario: Access protected resource with valid token
     Given I am authenticated as a "user"
