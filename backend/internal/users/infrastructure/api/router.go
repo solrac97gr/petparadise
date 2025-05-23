@@ -28,6 +28,10 @@ func SetupUserRoutes(router fiber.Router, db *sqlx.DB) {
 	// Protected routes
 	protectedRoutes := router.Use(auth.Protected())
 
+	// Specific routes first (before parameterized routes)
+	// Logout route (protected)
+	protectedRoutes.Post("/logout", userHandler.Logout)
+
 	// User management routes (protected)
 	protectedRoutes.Get("/", userHandler.GetAllUsers)
 	protectedRoutes.Get("/:id", userHandler.GetUserByID)
@@ -43,9 +47,6 @@ func SetupUserRoutes(router fiber.Router, db *sqlx.DB) {
 
 	// User password management (protected)
 	protectedRoutes.Post("/:id/password", userHandler.ChangePassword)
-
-	// Logout route (protected)
-	protectedRoutes.Post("/logout", userHandler.Logout)
 
 	// Revoke all tokens for a user (protected)
 	protectedRoutes.Post("/:id/revoke-tokens", userHandler.RevokeUserTokens)

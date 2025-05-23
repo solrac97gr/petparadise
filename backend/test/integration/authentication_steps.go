@@ -71,13 +71,31 @@ func (s *AuthSteps) iHaveInvalidUserCredentials() error {
 }
 
 func (s *AuthSteps) iHaveValidRefreshToken() error {
-	// Set up valid refresh token for testing
-	// This could be fetched from the test database or generated on the fly
+	// The refresh token should already be available from the login step
+	// Let's verify we have one from the current response
+	respBody := s.client.GetResponseBodyAsMap()
+	if respBody == nil {
+		return fmt.Errorf("no response body available")
+	}
+
+	// Check for tokens object
+	tokensObj, ok := respBody["tokens"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("tokens object not found in login response")
+	}
+
+	// Check for refresh_token
+	if _, exists := tokensObj["refresh_token"]; !exists {
+		return fmt.Errorf("refresh_token not found in login response")
+	}
+
 	return nil
 }
 
 func (s *AuthSteps) iHaveExpiredRefreshToken() error {
 	// Set up expired refresh token for testing
+	// For now, just use a token that will be invalid
+	// In a real scenario, this would be a properly formatted but expired JWT
 	return nil
 }
 
@@ -119,10 +137,22 @@ func (s *AuthSteps) iLoginWithMyCredentials() error {
 }
 
 func (s *AuthSteps) iRequestToRefreshMyTokens() error {
-	// Extract refresh token from previous response or use the one set directly
-	refreshToken := "test-refresh-token"
-	if value, exists := s.client.GetValueFromResponse("tokens.refresh_token"); exists {
-		refreshToken = value.(string)
+	// Extract refresh token from current response (from login)
+	respBody := s.client.GetResponseBodyAsMap()
+	if respBody == nil {
+		return fmt.Errorf("no response body available")
+	}
+
+	// Check for tokens object
+	tokensObj, ok := respBody["tokens"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("tokens object not found in response")
+	}
+
+	// Extract refresh token
+	refreshToken, ok := tokensObj["refresh_token"].(string)
+	if !ok {
+		return fmt.Errorf("refresh_token not found or not a string")
 	}
 
 	// Prepare refresh request
@@ -158,8 +188,23 @@ func (s *AuthSteps) iTryToAccessProtectedResourceWithoutAuth() error {
 }
 
 func (s *AuthSteps) iRevokeAllMyUserTokens() error {
+	// Get the user ID from the login response
+	respBody := s.client.GetResponseBodyAsMap()
+	if respBody == nil {
+		return fmt.Errorf("no response body available")
+	}
+
+	userObj, ok := respBody["user"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("user object not found in response")
+	}
+
+	userId, ok := userObj["id"].(string)
+	if !ok {
+		return fmt.Errorf("user id not found or not a string")
+	}
+
 	// Send request to revoke all tokens for the current user
-	userId := "test-user-id" // This would come from test context or previous responses
 	return s.client.Post(fmt.Sprintf("/users/%s/revoke-tokens", userId), nil)
 }
 
