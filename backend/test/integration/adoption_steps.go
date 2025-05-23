@@ -5,16 +5,18 @@ import (
 	"net/http"
 
 	"github.com/cucumber/godog"
+	"github.com/jmoiron/sqlx"
 )
 
 // AdoptionSteps contains adoption-related test steps
 type AdoptionSteps struct {
 	client *APIClient
+	db     *sqlx.DB
 }
 
 // RegisterAdoptionSteps registers step definitions for adoption testing
-func RegisterAdoptionSteps(ctx *godog.ScenarioContext, client *APIClient) {
-	steps := &AdoptionSteps{client: client}
+func RegisterAdoptionSteps(ctx *godog.ScenarioContext, client *APIClient, db *sqlx.DB) {
+	steps := &AdoptionSteps{client: client, db: db}
 
 	// Given steps
 	ctx.Step(`^I have submitted an adoption request$`, steps.iHaveSubmittedAdoptionRequest)
@@ -37,8 +39,7 @@ func RegisterAdoptionSteps(ctx *godog.ScenarioContext, client *APIClient) {
 // Given step implementations
 
 func (s *AdoptionSteps) iHaveSubmittedAdoptionRequest() error {
-	// This step assumes the user has already submitted an adoption request
-	// In a real implementation, you would create an adoption request or verify one exists
+
 	return nil
 }
 

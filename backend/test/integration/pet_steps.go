@@ -6,16 +6,18 @@ import (
 	"strings"
 
 	"github.com/cucumber/godog"
+	"github.com/jmoiron/sqlx"
 )
 
 // PetSteps contains pet-related test steps
 type PetSteps struct {
 	client *APIClient
+	db     *sqlx.DB
 }
 
 // RegisterPetSteps registers step definitions for pet testing
-func RegisterPetSteps(ctx *godog.ScenarioContext, client *APIClient) {
-	steps := &PetSteps{client: client}
+func RegisterPetSteps(ctx *godog.ScenarioContext, client *APIClient, db *sqlx.DB) {
+	steps := &PetSteps{client: client, db: db}
 
 	// Given steps
 	ctx.Step(`^there is an available pet with ID "([^"]*)"$`, steps.thereIsAnAvailablePet)

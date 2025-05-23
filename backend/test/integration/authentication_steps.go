@@ -6,11 +6,13 @@ import (
 	"net/http"
 
 	"github.com/cucumber/godog"
+	"github.com/jmoiron/sqlx"
 )
 
 // AuthSteps contains authentication test steps
 type AuthSteps struct {
 	client               *APIClient
+	db                   *sqlx.DB
 	credentialsValid     bool
 	testEmail            string
 	testPassword         string
@@ -18,8 +20,8 @@ type AuthSteps struct {
 }
 
 // RegisterAuthenticationSteps registers step definitions for authentication scenarios
-func RegisterAuthenticationSteps(ctx *godog.ScenarioContext, client *APIClient) {
-	steps := &AuthSteps{client: client}
+func RegisterAuthenticationSteps(ctx *godog.ScenarioContext, client *APIClient, db *sqlx.DB) {
+	steps := &AuthSteps{client: client, db: db}
 
 	// Given steps
 	ctx.Step(`^I am not authenticated$`, steps.iAmNotAuthenticated)

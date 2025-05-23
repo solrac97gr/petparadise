@@ -5,16 +5,18 @@ import (
 	"net/http"
 
 	"github.com/cucumber/godog"
+	"github.com/jmoiron/sqlx"
 )
 
 // UserSteps contains user-related test steps
 type UserSteps struct {
 	client *APIClient
+	db     *sqlx.DB
 }
 
 // RegisterUserSteps registers step definitions for user testing
-func RegisterUserSteps(ctx *godog.ScenarioContext, client *APIClient) {
-	steps := &UserSteps{client: client}
+func RegisterUserSteps(ctx *godog.ScenarioContext, client *APIClient, db *sqlx.DB) {
+	steps := &UserSteps{client: client, db: db}
 
 	// Given steps
 	ctx.Step(`^I am authenticated as an? "([^"]*)"$`, steps.iAmAuthenticatedAs)

@@ -7,20 +7,23 @@ import (
 	"strconv"
 
 	"github.com/cucumber/godog"
+	"github.com/jmoiron/sqlx"
 )
 
 // DonationSteps contains donation-related test steps
 type DonationSteps struct {
-	client *APIClient
+	client     *APIClient
+	db         *sqlx.DB
+	donationID string
 }
 
 // RegisterDonationSteps registers step definitions for donation testing
-func RegisterDonationSteps(ctx *godog.ScenarioContext, client *APIClient) {
-	steps := &DonationSteps{client: client}
+func RegisterDonationSteps(ctx *godog.ScenarioContext, client *APIClient, db *sqlx.DB) {
+	steps := &DonationSteps{client: client, db: db}
 
 	// Given steps
 	ctx.Step(`^I have made donations in the past$`, steps.iHaveMadeDonationsInThePast)
-	ctx.Step(`^I have made a donation with ID "([^"]*)"$`, steps.iHaveMadeDonationWithID)
+	ctx.Step(`^I have made a donation with ID`, steps.iHaveMadeDonationWithID)
 	ctx.Step(`^there is a pending donation with ID "([^"]*)"$`, steps.thereIsAPendingDonationWithID)
 	ctx.Step(`^there is a donation with ID "([^"]*)"$`, steps.thereIsADonationWithID)
 
@@ -56,16 +59,32 @@ func (s *DonationSteps) iHaveMadeDonationsInThePast() error {
 	}
 
 	// Create the donation
-	return s.client.Post("/donations", donationData)
+	err := s.client.Post("/donations", donationData)
+	if err != nil {
+		return err
+	}
+	// Check if the donation was created successfully
+	if s.client.GetResponseStatusCode() != http.StatusCreated {
+		return fmt.Errorf("expected status code %d, got %d",
+			http.StatusCreated, s.client.GetResponseStatusCode())
+	}
+	// Check if the donation ID is present in the response
+	respBody := s.client.GetResponseBodyAsMap()
+	if respBody == nil {
+		return fmt.Errorf("response body is empty or not valid JSON")
+	}
+	if _, ok := respBody["id"].(string); !ok {
+		return fmt.Errorf("donation ID not found in response")
+	}
+
+	// Store the donation ID for later use
+	s.donationID = respBody["id"].(string)
+
+	return nil
 }
 
-func (s *DonationSteps) iHaveMadeDonationWithID(id string) error {
-	// This step assumes a donation with the given ID exists
-	// In a real implementation, you would create a donation with the specified ID if it doesn't exist
-
-	// In a real test, this would use a repository directly or a test API to create a donation with a specific ID
-	// For now, we'll just check if the donation exists
-	err := s.client.Get(fmt.Sprintf("/donations/%s", id))
+func (s *DonationSteps) iHaveMadeDonationWithID() error {
+	err := s.client.Get(fmt.Sprintf("/donations/%s", s.donationID))
 	if err != nil {
 		return err
 	}

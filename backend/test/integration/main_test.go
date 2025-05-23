@@ -118,19 +118,19 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	apiClient := NewAPIClient()
 
 	// Register step definitions for authentication
-	RegisterAuthenticationSteps(ctx, apiClient)
+	RegisterAuthenticationSteps(ctx, apiClient, testDB)
 
 	// Register step definitions for users
-	RegisterUserSteps(ctx, apiClient)
+	RegisterUserSteps(ctx, apiClient, testDB)
 
 	// Register step definitions for pets
-	RegisterPetSteps(ctx, apiClient)
+	RegisterPetSteps(ctx, apiClient, testDB)
 
 	// Register step definitions for adoptions
-	RegisterAdoptionSteps(ctx, apiClient)
+	RegisterAdoptionSteps(ctx, apiClient, testDB)
 
 	// Register step definitions for donations
-	RegisterDonationSteps(ctx, apiClient)
+	RegisterDonationSteps(ctx, apiClient, testDB)
 
 	// Add hooks for scenario setup/teardown
 	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
