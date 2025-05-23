@@ -4,7 +4,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/solrac97gr/petparadise/internal/users/aplication"
+	"github.com/solrac97gr/petparadise/internal/users/domain/models"
 	"github.com/solrac97gr/petparadise/internal/users/infrastructure/repository"
+	"github.com/solrac97gr/petparadise/pkg/auth"
 )
 
 // SetupUserRoutes sets up all user routes
@@ -18,19 +20,29 @@ func SetupUserRoutes(router fiber.Router, db *sqlx.DB) {
 	// Initialize handler
 	userHandler := NewUserHandler(userService)
 
-	// User routes
-	router.Post("/", userHandler.CreateUser)
-	router.Get("/", userHandler.GetAllUsers)
-	router.Get("/:id", userHandler.GetUserByID)
-	router.Get("/email", userHandler.GetUserByEmail)
-	router.Get("/status", userHandler.GetUsersByStatus)
-	router.Put("/:id", userHandler.UpdateUser)
-	router.Patch("/:id/role", userHandler.UpdateUserRole)
-	router.Patch("/:id/status", userHandler.UpdateUserStatus)
-	router.Post("/:id/password", userHandler.ChangePassword)
-	router.Delete("/:id", userHandler.DeleteUser)
+	// Public routes
+	router.Post("/register", userHandler.CreateUser) // Registration endpoint
+	router.Post("/login", userHandler.Login)         // Login endpoint
 
-	// Auth routes
-	router.Post("/login", userHandler.Login)
-	router.Post("/logout", userHandler.Logout)
+	// Protected routes
+	protectedRoutes := router.Use(auth.Protected())
+
+	// User management routes (protected)
+	protectedRoutes.Get("/", userHandler.GetAllUsers)
+	protectedRoutes.Get("/:id", userHandler.GetUserByID)
+	protectedRoutes.Get("/email", userHandler.GetUserByEmail)
+	protectedRoutes.Get("/status", userHandler.GetUsersByStatus)
+	protectedRoutes.Put("/:id", userHandler.UpdateUser)
+
+	// Admin only routes
+	adminRoutes := protectedRoutes.Use(auth.RoleRequired(models.RoleAdmin))
+	adminRoutes.Patch("/:id/role", userHandler.UpdateUserRole)
+	adminRoutes.Patch("/:id/status", userHandler.UpdateUserStatus)
+	adminRoutes.Delete("/:id", userHandler.DeleteUser)
+
+	// User password management (protected)
+	protectedRoutes.Post("/:id/password", userHandler.ChangePassword)
+
+	// Logout route (protected)
+	protectedRoutes.Post("/logout", userHandler.Logout)
 }

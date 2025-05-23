@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/solrac97gr/petparadise/internal/users/domain/models"
 	"github.com/solrac97gr/petparadise/internal/users/domain/ports"
+	"github.com/solrac97gr/petparadise/pkg/auth"
 )
 
 type userHandler struct {
@@ -450,13 +451,20 @@ func (h *userHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
+	// Generate JWT token
+	token, err := auth.GenerateToken(user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to generate authentication token",
+		})
+	}
+
 	// Don't return the password
 	user.Password = ""
 
 	return c.JSON(fiber.Map{
-		"user": user,
-		// We would normally generate and return a JWT token here
-		"token": "sample-jwt-token", // placeholder - in a real app, this would be a real JWT
+		"user":  user,
+		"token": token,
 	})
 }
 

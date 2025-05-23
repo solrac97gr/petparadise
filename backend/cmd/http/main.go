@@ -15,6 +15,7 @@ import (
 	donationAPI "github.com/solrac97gr/petparadise/internal/donations/infrastructure/api"
 	petAPI "github.com/solrac97gr/petparadise/internal/pets/infrastructure/api"
 	userAPI "github.com/solrac97gr/petparadise/internal/users/infrastructure/api"
+	"github.com/solrac97gr/petparadise/pkg/auth"
 	"github.com/solrac97gr/petparadise/pkg/config"
 	"github.com/solrac97gr/petparadise/pkg/database"
 	"github.com/solrac97gr/petparadise/pkg/logger"
@@ -27,6 +28,9 @@ func main() {
 	// Initialize logger
 	appLogger := logger.New(cfg.LogLevel)
 	defer appLogger.Sync()
+
+	// Initialize JWT secret
+	auth.InitJWTSecret(cfg)
 
 	// Connect to the database
 	db, err := sqlx.Connect("postgres", cfg.DatabaseURL)
@@ -56,9 +60,11 @@ func main() {
 	app.Use(recover.New())
 	app.Use(fiberLogger.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: strings.Join(cfg.CORSAllowedOrigins, ","),
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
-		AllowMethods: "GET, POST, PUT, DELETE",
+		AllowOrigins:     strings.Join(cfg.CORSAllowedOrigins, ","),
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowMethods:     "GET, POST, PUT, DELETE, PATCH",
+		AllowCredentials: true,
+		ExposeHeaders:    "Authorization",
 	}))
 
 	// Root route
