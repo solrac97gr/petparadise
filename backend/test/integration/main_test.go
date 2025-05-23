@@ -68,16 +68,16 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 
 	// Register step definitions for authentication
 	RegisterAuthenticationSteps(ctx, apiClient)
-	
+
 	// Register step definitions for users
 	RegisterUserSteps(ctx, apiClient)
-	
+
 	// Register step definitions for pets
 	RegisterPetSteps(ctx, apiClient)
-	
+
 	// Register step definitions for adoptions
 	RegisterAdoptionSteps(ctx, apiClient)
-	
+
 	// Register step definitions for donations
 	RegisterDonationSteps(ctx, apiClient)
 

@@ -47,14 +47,14 @@ func RegisterDonationSteps(ctx *godog.ScenarioContext, client *APIClient) {
 func (s *DonationSteps) iHaveMadeDonationsInThePast() error {
 	// This step assumes the user has made donations in the test database
 	// In a real implementation, you would create test donations if they don't exist
-	
+
 	// Make a test donation to ensure there's at least one
 	donationData := map[string]interface{}{
 		"amount":    50.00,
 		"comment":   "Test donation for history",
 		"anonymous": false,
 	}
-	
+
 	// Create the donation
 	return s.client.Post("/donations", donationData)
 }
@@ -62,27 +62,27 @@ func (s *DonationSteps) iHaveMadeDonationsInThePast() error {
 func (s *DonationSteps) iHaveMadeDonationWithID(id string) error {
 	// This step assumes a donation with the given ID exists
 	// In a real implementation, you would create a donation with the specified ID if it doesn't exist
-	
+
 	// In a real test, this would use a repository directly or a test API to create a donation with a specific ID
 	// For now, we'll just check if the donation exists
 	err := s.client.Get(fmt.Sprintf("/donations/%s", id))
 	if err != nil {
 		return err
 	}
-	
+
 	// If donation doesn't exist, we'd create it
 	if s.client.GetResponseStatusCode() == http.StatusNotFound {
 		// Since we can't directly create with ID through the API, this would use a test helper or direct DB access
 		return fmt.Errorf("donation with ID %s does not exist and cannot be created through API", id)
 	}
-	
+
 	return nil
 }
 
 func (s *DonationSteps) thereIsAPendingDonationWithID(id string) error {
 	// This step assumes a pending donation with the given ID exists
 	// In a real implementation, you would create a pending donation with the specified ID
-	
+
 	// Similar to above, but ensuring the status is "pending"
 	// In a real test, this would use a repository directly or a test API to ensure a donation exists with pending status
 	return nil
@@ -102,13 +102,13 @@ func (s *DonationSteps) iMakeADonation(amount string) error {
 	if err != nil {
 		return fmt.Errorf("invalid amount: %s", amount)
 	}
-	
+
 	donationData := map[string]interface{}{
 		"amount":    amountFloat,
 		"comment":   "Test donation from BDD test",
 		"anonymous": false,
 	}
-	
+
 	return s.client.Post("/donations", donationData)
 }
 
@@ -130,7 +130,7 @@ func (s *DonationSteps) iUpdateDonationStatus(id, status string) error {
 	statusData := map[string]interface{}{
 		"status": status,
 	}
-	
+
 	return s.client.Patch(fmt.Sprintf("/donations/%s/status", id), statusData)
 }
 
@@ -142,20 +142,20 @@ func (s *DonationSteps) iDeleteDonation(id string) error {
 
 func (s *DonationSteps) theDonationShouldBeCreatedSuccessfully() error {
 	if s.client.GetResponseStatusCode() != http.StatusCreated {
-		return fmt.Errorf("expected status code %d, got %d", 
+		return fmt.Errorf("expected status code %d, got %d",
 			http.StatusCreated, s.client.GetResponseStatusCode())
 	}
-	
+
 	respBody := s.client.GetResponseBodyAsMap()
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Check that the response contains an ID
 	if _, ok := respBody["id"].(string); !ok {
 		return fmt.Errorf("donation ID not found in response")
 	}
-	
+
 	return nil
 }
 
@@ -164,7 +164,7 @@ func (s *DonationSteps) theDonationAmountShouldBe(expectedAmount string) error {
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Get donation amount
 	var amount float64
 	if amountRaw, ok := respBody["amount"].(float64); ok {
@@ -178,32 +178,32 @@ func (s *DonationSteps) theDonationAmountShouldBe(expectedAmount string) error {
 	} else {
 		return fmt.Errorf("amount not found in response or not a number")
 	}
-	
+
 	// Parse expected amount
 	expectedAmountFloat, err := strconv.ParseFloat(expectedAmount, 64)
 	if err != nil {
 		return fmt.Errorf("invalid expected amount: %s", expectedAmount)
 	}
-	
+
 	// Compare amounts
 	if amount != expectedAmountFloat {
 		return fmt.Errorf("expected amount %.2f, got %.2f", expectedAmountFloat, amount)
 	}
-	
+
 	return nil
 }
 
 func (s *DonationSteps) iShouldSeeListOfMyDonations() error {
 	if s.client.GetResponseStatusCode() != http.StatusOK {
-		return fmt.Errorf("expected status code %d, got %d", 
+		return fmt.Errorf("expected status code %d, got %d",
 			http.StatusOK, s.client.GetResponseStatusCode())
 	}
-	
+
 	respBody := s.client.GetResponseBodyAsMap()
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Check if the response contains an array
 	if _, ok := respBody["donations"].([]interface{}); !ok {
 		// Try direct array response
@@ -213,7 +213,7 @@ func (s *DonationSteps) iShouldSeeListOfMyDonations() error {
 			return fmt.Errorf("response does not contain a list of donations")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -222,7 +222,7 @@ func (s *DonationSteps) theDonationDetailsShouldContainAmount(expectedAmount str
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Get donation amount
 	var amount float64
 	if amountRaw, ok := respBody["amount"].(float64); ok {
@@ -230,18 +230,18 @@ func (s *DonationSteps) theDonationDetailsShouldContainAmount(expectedAmount str
 	} else {
 		return fmt.Errorf("amount not found in response or not a number")
 	}
-	
+
 	// Parse expected amount
 	expectedAmountFloat, err := strconv.ParseFloat(expectedAmount, 64)
 	if err != nil {
 		return fmt.Errorf("invalid expected amount: %s", expectedAmount)
 	}
-	
+
 	// Compare amounts
 	if amount != expectedAmountFloat {
 		return fmt.Errorf("expected amount %.2f, got %.2f", expectedAmountFloat, amount)
 	}
-	
+
 	return nil
 }
 
@@ -250,7 +250,7 @@ func (s *DonationSteps) theDonationDetailsShouldContainStatus(expectedStatus str
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Get donation status
 	var status string
 	if statusRaw, ok := respBody["status"].(string); ok {
@@ -258,27 +258,27 @@ func (s *DonationSteps) theDonationDetailsShouldContainStatus(expectedStatus str
 	} else {
 		return fmt.Errorf("status not found in response or not a string")
 	}
-	
+
 	// Compare statuses
 	if status != expectedStatus {
 		return fmt.Errorf("expected status %s, got %s", expectedStatus, status)
 	}
-	
+
 	return nil
 }
 
 func (s *DonationSteps) iShouldSeeListOfAllDonations() error {
 	if s.client.GetResponseStatusCode() != http.StatusOK {
-		return fmt.Errorf("expected status code %d, got %d", 
+		return fmt.Errorf("expected status code %d, got %d",
 			http.StatusOK, s.client.GetResponseStatusCode())
 	}
-	
+
 	// Implementation similar to iShouldSeeListOfMyDonations
 	respBody := s.client.GetResponseBodyAsMap()
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Check if the response contains an array
 	if _, ok := respBody["donations"].([]interface{}); !ok {
 		// Try direct array response
@@ -288,7 +288,7 @@ func (s *DonationSteps) iShouldSeeListOfAllDonations() error {
 			return fmt.Errorf("response does not contain a list of donations")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -298,7 +298,7 @@ func (s *DonationSteps) theDonationStatusShouldBe(expectedStatus string) error {
 	if respBody == nil {
 		return fmt.Errorf("response body is empty or not valid JSON")
 	}
-	
+
 	// Get donation status
 	var status string
 	if statusRaw, ok := respBody["status"].(string); ok {
@@ -306,11 +306,11 @@ func (s *DonationSteps) theDonationStatusShouldBe(expectedStatus string) error {
 	} else {
 		return fmt.Errorf("status not found in response or not a string")
 	}
-	
+
 	// Compare statuses
 	if status != expectedStatus {
 		return fmt.Errorf("expected status %s, got %s", expectedStatus, status)
 	}
-	
+
 	return nil
 }

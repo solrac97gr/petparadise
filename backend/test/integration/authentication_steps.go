@@ -134,7 +134,7 @@ func (s *AuthSteps) iUseMyTokenToAccessProtectedResource() error {
 func (s *AuthSteps) iTryToAccessProtectedResourceWithoutAuth() error {
 	// Clear any authentication token
 	s.client.AuthToken = ""
-	
+
 	// Try to access a protected endpoint
 	return s.client.Get("/users/profile")
 }
