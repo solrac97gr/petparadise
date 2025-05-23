@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  test-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: petparadise_test
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - test_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d petparadise_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  test-api:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+    environment:
+      - DATABASE_URL=postgres://testuser:testpass@test-db:5432/petparadise_test?sslmode=disable
+      - PORT=3000
+      - LOG_LEVEL=debug
+      - JWT_SECRET=test-jwt-secret-key-for-integration-tests
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+    ports:
+      - "3001:3000"
+    depends_on:
+      test-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  test_db_data:

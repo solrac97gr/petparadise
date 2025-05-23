@@ -10,7 +10,10 @@ import (
 
 // AuthSteps contains authentication test steps
 type AuthSteps struct {
-	client *APIClient
+	client           *APIClient
+	credentialsValid bool
+	testEmail        string
+	testPassword     string
 }
 
 // RegisterAuthenticationSteps registers step definitions for authentication scenarios
@@ -52,13 +55,18 @@ func (s *AuthSteps) iAmNotAuthenticated() error {
 }
 
 func (s *AuthSteps) iHaveValidUserCredentials() error {
-	// Set up valid test credentials
-	// These would typically be test user credentials in the test database
+	// Set up valid test credentials from our test data
+	s.credentialsValid = true
+	s.testEmail = "user@example.com"
+	s.testPassword = "password123"
 	return nil
 }
 
 func (s *AuthSteps) iHaveInvalidUserCredentials() error {
 	// Set up invalid test credentials
+	s.credentialsValid = false
+	s.testEmail = "invalid@test.com"
+	s.testPassword = "wrongpassword"
 	return nil
 }
 
@@ -85,14 +93,24 @@ func (s *AuthSteps) iHaveExpiredAccessToken() error {
 
 // When steps
 func (s *AuthSteps) iLoginWithMyCredentials() error {
+	// Use the credentials set in the previous steps
+	email := s.testEmail
+	password := s.testPassword
+
+	// Default to test user if no specific credentials were set
+	if email == "" {
+		email = "user@example.com"
+		password = "password123"
+	}
+
 	// Prepare login request data
 	loginData := map[string]string{
-		"email":    "test@example.com",
-		"password": "password123",
+		"email":    email,
+		"password": password,
 	}
 
 	// Send login request
-	err := s.client.Post("/users/login", loginData)
+	err := s.client.Post("/login", loginData)
 	if err != nil {
 		return err
 	}
@@ -113,7 +131,7 @@ func (s *AuthSteps) iRequestToRefreshMyTokens() error {
 	}
 
 	// Send refresh request
-	err := s.client.Post("/users/refresh", refreshData)
+	err := s.client.Post("/refresh", refreshData)
 	if err != nil {
 		return err
 	}
@@ -123,12 +141,12 @@ func (s *AuthSteps) iRequestToRefreshMyTokens() error {
 
 func (s *AuthSteps) iLogout() error {
 	// Send logout request
-	return s.client.Post("/users/logout", nil)
+	return s.client.Post("/logout", nil)
 }
 
 func (s *AuthSteps) iUseMyTokenToAccessProtectedResource() error {
-	// Use the token to access a protected endpoint (e.g., user profile)
-	return s.client.Get("/users/profile")
+	// Use the token to access a protected endpoint (e.g., get all users)
+	return s.client.Get("/")
 }
 
 func (s *AuthSteps) iTryToAccessProtectedResourceWithoutAuth() error {
@@ -136,13 +154,13 @@ func (s *AuthSteps) iTryToAccessProtectedResourceWithoutAuth() error {
 	s.client.AuthToken = ""
 
 	// Try to access a protected endpoint
-	return s.client.Get("/users/profile")
+	return s.client.Get("/")
 }
 
 func (s *AuthSteps) iRevokeAllMyUserTokens() error {
 	// Send request to revoke all tokens for the current user
 	userId := "test-user-id" // This would come from test context or previous responses
-	return s.client.Post(fmt.Sprintf("/users/%s/revoke-tokens", userId), nil)
+	return s.client.Post(fmt.Sprintf("/%s/revoke-tokens", userId), nil)
 }
 
 // Then steps
@@ -225,7 +243,7 @@ func (s *AuthSteps) theResponseShouldContain(text string) error {
 func (s *AuthSteps) myTokensShouldBeInvalidated() error {
 	// Try to use the token to access a protected resource
 	// This should now fail with 401 Unauthorized
-	err := s.client.Get("/users/profile")
+	err := s.client.Get("/")
 	if err != nil {
 		return err
 	}

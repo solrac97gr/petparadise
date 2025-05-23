@@ -33,6 +33,22 @@ frontend-build:
 frontend-deps:
 	cd frontend && npm install
 
+# Test commands
+integration-test:
+	cd backend && go test ./test/integration/... -v
+
+integration-test-docker:
+	docker-compose -f backend/test/docker-compose.test.yml up -d --build
+	sleep 10
+	cd backend && TEST_DATABASE_URL=postgres://testuser:testpass@localhost:5433/petparadise_test?sslmode=disable TEST_API_URL=http://localhost:3001/api/users go test ./test/integration/... -v
+	docker-compose -f backend/test/docker-compose.test.yml down
+
+integration-test-setup:
+	docker-compose -f backend/test/docker-compose.test.yml up -d --build
+
+integration-test-cleanup:
+	docker-compose -f backend/test/docker-compose.test.yml down -v
+
 # Clean commands
 clean:
 	docker-compose down -v

@@ -4,17 +4,25 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	"github.com/solrac97gr/petparadise/pkg/auth"
+	"github.com/solrac97gr/petparadise/pkg/config"
+	"github.com/solrac97gr/petparadise/pkg/database"
 )
 
 var opts = godog.Options{
 	Output: colors.Colored(os.Stdout),
 	Format: "pretty",
 }
+
+var testDB *sqlx.DB
 
 func init() {
 	// Register command line flags for Godog
@@ -49,16 +57,59 @@ func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 	ctx.BeforeSuite(func() {
 		// Setup database, perhaps with test data
 		fmt.Println("Setting up test suite...")
-		// connect to test database
-		// migrate tables
-		// seed initial data
+
+		// Load configuration for testing
+		cfg := config.New()
+
+		// Use test database URL if available, otherwise use default
+		dbURL := os.Getenv("TEST_DATABASE_URL")
+		if dbURL == "" {
+			dbURL = cfg.DatabaseURL
+		}
+
+		// Initialize JWT secret
+		auth.InitJWTSecret(cfg)
+
+		// Connect to the database
+		var err error
+		testDB, err = sqlx.Connect("postgres", dbURL)
+		if err != nil {
+			log.Fatalf("Failed to connect to test database: %v", err)
+		}
+
+		// Verify database connection
+		if err = testDB.Ping(); err != nil {
+			log.Fatalf("Failed to ping test database: %v", err)
+		}
+
+		// Setup database tables
+		if err = database.SetupDatabase(testDB); err != nil {
+			log.Fatalf("Failed to setup test database: %v", err)
+		}
+
+		// Setup test data
+		if err = SetupTestData(testDB); err != nil {
+			log.Fatalf("Failed to setup test data: %v", err)
+		}
+
+		fmt.Println("Test suite setup completed successfully")
 	})
 
 	ctx.AfterSuite(func() {
 		// Cleanup after all scenarios have run
 		fmt.Println("Cleaning up test suite...")
-		// close database connections
-		// remove test data
+
+		if testDB != nil {
+			// Cleanup test data
+			if err := CleanupTestData(testDB); err != nil {
+				log.Printf("Failed to cleanup test data: %v", err)
+			}
+
+			// Close database connection
+			testDB.Close()
+		}
+
+		fmt.Println("Test suite cleanup completed")
 	})
 }
 
