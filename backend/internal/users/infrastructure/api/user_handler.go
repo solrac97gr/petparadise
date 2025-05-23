@@ -1,6 +1,8 @@
 package api
 
 import (
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/solrac97gr/petparadise/internal/users/domain/models"
 	"github.com/solrac97gr/petparadise/internal/users/domain/ports"
@@ -452,7 +454,7 @@ func (h *userHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// Generate JWT token
-	token, err := auth.GenerateToken(user)
+	tokenPair, err := auth.GenerateTokenPair(user)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to generate authentication token",
@@ -463,15 +465,167 @@ func (h *userHandler) Login(c *fiber.Ctx) error {
 	user.Password = ""
 
 	return c.JSON(fiber.Map{
-		"user":  user,
-		"token": token,
+		"user":   user,
+		"tokens": tokenPair,
 	})
 }
 
 // Logout handles user logout
 func (h *userHandler) Logout(c *fiber.Ctx) error {
-	// In a real app, we would invalidate the JWT token
+	// Get the access token from the context (set by Protected middleware)
+	accessToken, ok := c.Locals("accessToken").(string)
+	if !ok || accessToken == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "No active session found",
+		})
+	}
+
+	// Get refresh token from request body (optional)
+	type logoutRequest struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	var req logoutRequest
+	if err := c.BodyParser(&req); err == nil && req.RefreshToken != "" {
+		// If refresh token is provided, revoke it
+		// Validate the token first to get its expiration
+		refreshClaims, err := auth.ValidateRefreshToken(req.RefreshToken)
+		if err == nil && refreshClaims != nil {
+			// Revoke the refresh token
+			auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
+		}
+	}
+
+	// Get access token expiration from claims
+	accessClaims, err := auth.ValidateAccessToken(accessToken)
+	if err == nil && accessClaims != nil {
+		// Revoke the access token
+		auth.RevokeToken(accessToken, accessClaims.ExpiresAt.Time)
+
+		// Log the user ID that's being logged out
+		log.Printf("User logged out: %s", accessClaims.UserID)
+	}
+
 	return c.JSON(fiber.Map{
 		"message": "Logged out successfully",
+	})
+}
+
+// RefreshToken handles refreshing the access token using a valid refresh token
+func (h *userHandler) RefreshToken(c *fiber.Ctx) error {
+	type refreshRequest struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	var req refreshRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.RefreshToken == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Refresh token is required",
+		})
+	}
+
+	// Validate the refresh token first
+	refreshClaims, err := auth.ValidateRefreshToken(req.RefreshToken)
+	if err != nil {
+		status := fiber.StatusUnauthorized
+		errorMsg := "Invalid refresh token"
+
+		if err == auth.ErrExpiredToken {
+			errorMsg = "Refresh token has expired"
+		} else if err == auth.ErrRevokedToken {
+			errorMsg = "Refresh token has been revoked"
+		}
+
+		return c.Status(status).JSON(fiber.Map{
+			"error": errorMsg,
+			"code":  "refresh_token_invalid",
+		})
+	}
+
+	// Get the user from the database to ensure they still exist and are active
+	user, err := h.service.GetUserByID(refreshClaims.UserID)
+	if err != nil || user == nil {
+		// Revoke the token if the user doesn't exist anymore
+		auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
+
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User not found or account deleted",
+			"code":  "user_invalid",
+		})
+	}
+
+	// Check if user is active
+	if !user.Status.IsEquals(models.StatusActive) {
+		// Revoke the token if the user is inactive
+		auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
+
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User account is inactive",
+			"code":  "user_inactive",
+		})
+	}
+
+	// Generate new token pair
+	tokenPair, err := auth.GenerateTokenPair(user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to generate new tokens",
+		})
+	}
+
+	// Revoke the old refresh token
+	auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
+
+	return c.JSON(fiber.Map{
+		"tokens": tokenPair,
+	})
+}
+
+// RevokeUserTokens handles revoking all tokens for a specific user
+func (h *userHandler) RevokeUserTokens(c *fiber.Ctx) error {
+	// This endpoint should only be accessible by admins or the user themselves
+
+	// Get ID from the URL parameter
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID is required",
+		})
+	}
+
+	// Check if the requesting user has permission (is admin or the same user)
+	requestingUserID := c.Locals("userID").(string)
+	requestingUserRole, _ := c.Locals("role").(models.Role)
+	isAdmin := requestingUserRole.IsEquals(models.RoleAdmin)
+	isSameUser := requestingUserID == id
+
+	if !isAdmin && !isSameUser {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Insufficient permissions to revoke tokens for this user",
+		})
+	}
+
+	// Check if user exists
+	user, err := h.service.GetUserByID(id)
+	if err != nil || user == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "User not found",
+		})
+	}
+
+	// Revoke all tokens for this user
+	auth.RevokeAllUserTokens(id)
+
+	// Log the action
+	log.Printf("All tokens revoked for user %s by %s", id, requestingUserID)
+
+	return c.JSON(fiber.Map{
+		"message": "All tokens revoked successfully",
 	})
 }

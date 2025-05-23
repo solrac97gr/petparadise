@@ -21,8 +21,9 @@ func SetupUserRoutes(router fiber.Router, db *sqlx.DB) {
 	userHandler := NewUserHandler(userService)
 
 	// Public routes
-	router.Post("/register", userHandler.CreateUser) // Registration endpoint
-	router.Post("/login", userHandler.Login)         // Login endpoint
+	router.Post("/register", userHandler.CreateUser)  // Registration endpoint
+	router.Post("/login", userHandler.Login)          // Login endpoint
+	router.Post("/refresh", userHandler.RefreshToken) // Token refresh endpoint
 
 	// Protected routes
 	protectedRoutes := router.Use(auth.Protected())
@@ -45,4 +46,7 @@ func SetupUserRoutes(router fiber.Router, db *sqlx.DB) {
 
 	// Logout route (protected)
 	protectedRoutes.Post("/logout", userHandler.Logout)
+
+	// Revoke all tokens for a user (protected)
+	protectedRoutes.Post("/:id/revoke-tokens", userHandler.RevokeUserTokens)
 }

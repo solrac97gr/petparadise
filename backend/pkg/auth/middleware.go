@@ -30,17 +30,20 @@ func Protected() fiber.Handler {
 		tokenString := parts[1]
 
 		// Validate the token
-		claims, err := ValidateToken(tokenString)
+		claims, err := ValidateAccessToken(tokenString)
 		if err != nil {
 			status := fiber.StatusUnauthorized
 			errorMsg := "Invalid token"
 
 			if err == ErrExpiredToken {
 				errorMsg = "Token has expired"
+			} else if err == ErrRevokedToken {
+				errorMsg = "Token has been revoked"
 			}
 
 			return c.Status(status).JSON(fiber.Map{
 				"error": errorMsg,
+				"code":  "token_invalid",
 			})
 		}
 
@@ -48,6 +51,7 @@ func Protected() fiber.Handler {
 		c.Locals("userID", claims.UserID)
 		c.Locals("email", claims.Email)
 		c.Locals("role", claims.Role)
+		c.Locals("accessToken", tokenString) // Store the access token for potential revocation
 
 		// Continue to next middleware/handler
 		return c.Next()

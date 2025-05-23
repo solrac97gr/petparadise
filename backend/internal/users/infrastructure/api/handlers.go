@@ -17,4 +17,6 @@ type UserHandler interface {
 	DeleteUser(c *fiber.Ctx) error
 	Login(c *fiber.Ctx) error
 	Logout(c *fiber.Ctx) error
+	RefreshToken(c *fiber.Ctx) error
+	RevokeUserTokens(c *fiber.Ctx) error
 }
