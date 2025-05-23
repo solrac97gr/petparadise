@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/cucumber/godog"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -16,6 +17,7 @@ type AuthSteps struct {
 	credentialsValid     bool
 	testEmail            string
 	testPassword         string
+	testToken            string
 	explicitRefreshToken string // Added to store an explicitly set refresh token
 }
 
@@ -24,6 +26,7 @@ func RegisterAuthenticationSteps(ctx *godog.ScenarioContext, client *APIClient, 
 	steps := &AuthSteps{client: client, db: db}
 
 	// Given steps
+	ctx.Step(`^I am authenticated as an? "([^"]*)"$`, steps.iAmAuthenticatedAs)
 	ctx.Step(`^I am not authenticated$`, steps.iAmNotAuthenticated)
 	ctx.Step(`^I have valid user credentials$`, steps.iHaveValidUserCredentials)
 	ctx.Step(`^I have invalid user credentials$`, steps.iHaveInvalidUserCredentials)
@@ -50,6 +53,62 @@ func RegisterAuthenticationSteps(ctx *godog.ScenarioContext, client *APIClient, 
 }
 
 // Step definition implementations
+func (s *AuthSteps) iAmAuthenticatedAs(role string) error {
+	randomUUID := uuid.New().String()
+	s.testEmail = "test" + randomUUID + role + "@example.com"
+	s.testPassword = "password123"
+
+	loginData := map[string]string{
+		"email":    s.testEmail,
+		"password": s.testPassword,
+	}
+
+	// For login we need to create a new user in the database matching the test credentials
+	// the password should be hashed in a real scenario
+	if err := s.client.Post("/users/register", map[string]string{
+		"name":     "Test User",
+		"email":    s.testEmail,
+		"password": s.testPassword,
+	}); err != nil {
+		return fmt.Errorf("failed to create test user: %v", err)
+	}
+	if s.client.GetResponseStatusCode() != http.StatusCreated {
+		return fmt.Errorf("failed to create test user, got status %d, and body %v", s.client.GetResponseStatusCode(), string(s.client.GetResponseBody()))
+	}
+
+	// we convert the user to the specified role for testing purposes
+	res, err := s.db.Exec("UPDATE users SET role = $1 WHERE email = $2", role, s.testEmail)
+	if err != nil {
+		return fmt.Errorf("failed to update user role: %v", err)
+	}
+
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		return fmt.Errorf("no rows affected when updating user role")
+	}
+	// Send login request
+	if err := s.client.Post("/users/login", loginData); err != nil {
+		return err
+	}
+
+	if s.client.GetResponseStatusCode() != http.StatusOK {
+		fmt.Println("Login failed:", string(s.client.GetResponseBody()))
+		return fmt.Errorf("login failed, got status %d", s.client.GetResponseStatusCode())
+	}
+
+	// Extract and set the token
+	respBody := s.client.GetResponseBodyAsMap()
+	if tokensObj, ok := respBody["tokens"].(map[string]interface{}); ok {
+		if accessToken, ok := tokensObj["access_token"].(string); ok {
+			s.client.SetAuthToken(accessToken)
+			s.testToken = accessToken
+		} else {
+			return fmt.Errorf("access_token not found in response")
+		}
+	} else {
+		return fmt.Errorf("tokens object not found in response")
+	}
+	return nil
+}
 
 // Given steps
 func (s *AuthSteps) iAmNotAuthenticated() error {
@@ -113,6 +172,7 @@ func (s *AuthSteps) iHaveExpiredAccessToken() error {
 
 // When steps
 func (s *AuthSteps) iLoginWithMyCredentials() error {
+
 	// Use the credentials set in the previous steps
 	email := s.testEmail
 	password := s.testPassword
@@ -129,9 +189,33 @@ func (s *AuthSteps) iLoginWithMyCredentials() error {
 		"password": password,
 	}
 
-	// Send login request
-	err := s.client.Post("/users/login", loginData)
+	// For login we need to create a new user in the database matching the test credentials
+	// the password should be hashed in a real scenario
+	if err := s.client.Post("/users/register", map[string]string{
+		"name":     "Test User",
+		"email":    email,
+		"password": password,
+	}); err != nil {
+		return fmt.Errorf("failed to create test user: %v", err)
+	}
+	if s.client.GetResponseStatusCode() != http.StatusCreated {
+		return fmt.Errorf("failed to create test user, got status %d, and body %v", s.client.GetResponseStatusCode(), string(s.client.GetResponseBody()))
+	}
+
+	// we convert the user to an admin for testing purposes
+	res, err := s.db.Exec("UPDATE users SET role = 'admin' WHERE email = $1", email)
 	if err != nil {
+		return fmt.Errorf("failed to update user role: %v", err)
+	}
+	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+		return fmt.Errorf("no rows affected when updating user role")
+	}
+	if !s.credentialsValid {
+		loginData["email"] = "invalid@email.com"
+	}
+
+	// Send login request
+	if err := s.client.Post("/users/login", loginData); err != nil {
 		return err
 	}
 
@@ -183,7 +267,11 @@ func (s *AuthSteps) iLogout() error {
 
 func (s *AuthSteps) iUseMyTokenToAccessProtectedResource() error {
 	// Use the token to access a protected endpoint (e.g., get all users)
-	return s.client.Get("/users/")
+	if err := s.client.Get("/users/"); err != nil {
+
+		return fmt.Errorf("failed to access protected resource: %v", err)
+	}
+	return nil
 }
 
 func (s *AuthSteps) iTryToAccessProtectedResourceWithoutAuth() error {
@@ -212,7 +300,13 @@ func (s *AuthSteps) iRevokeAllMyUserTokens() error {
 	}
 
 	// Send request to revoke all tokens for the current user
-	return s.client.Post(fmt.Sprintf("/users/%s/revoke-tokens", userId), nil)
+	if err := s.client.Post(fmt.Sprintf("/users/%s/revoke-tokens", userId), nil); err != nil {
+		return fmt.Errorf("failed to revoke tokens: %v", err)
+	}
+	if s.client.GetResponseStatusCode() != http.StatusOK {
+		return fmt.Errorf("failed to revoke tokens, got status %d, and body %s", s.client.GetResponseStatusCode(), string(s.client.GetResponseBody()))
+	}
+	return nil
 }
 
 // Then steps
@@ -226,7 +320,7 @@ func (s *AuthSteps) iShouldReceiveValidTokenPair() error {
 	// Check for tokens object
 	tokensObj, ok := respBody["tokens"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("tokens object not found in response")
+		return fmt.Errorf("tokens object not found in response body: %v", respBody)
 	}
 
 	// Check for access_token

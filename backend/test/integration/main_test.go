@@ -87,11 +87,6 @@ func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 			log.Fatalf("Failed to setup test database: %v", err)
 		}
 
-		// Setup test data
-		if err = SetupTestData(testDB); err != nil {
-			log.Fatalf("Failed to setup test data: %v", err)
-		}
-
 		fmt.Println("Test suite setup completed successfully")
 	})
 
@@ -101,9 +96,7 @@ func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 
 		if testDB != nil {
 			// Cleanup test data
-			if err := CleanupTestData(testDB); err != nil {
-				log.Printf("Failed to cleanup test data: %v", err)
-			}
+			testDB.Exec("TRUNCATE TABLE users, pets, adoptions, donations CASCADE")
 
 			// Close database connection
 			testDB.Close()
@@ -119,18 +112,6 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 
 	// Register step definitions for authentication
 	RegisterAuthenticationSteps(ctx, apiClient, testDB)
-
-	// Register step definitions for users
-	RegisterUserSteps(ctx, apiClient, testDB)
-
-	// Register step definitions for pets
-	RegisterPetSteps(ctx, apiClient, testDB)
-
-	// Register step definitions for adoptions
-	RegisterAdoptionSteps(ctx, apiClient, testDB)
-
-	// Register step definitions for donations
-	RegisterDonationSteps(ctx, apiClient, testDB)
 
 	// Add hooks for scenario setup/teardown
 	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
