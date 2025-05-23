@@ -93,10 +93,17 @@ func (s *AuthSteps) iHaveValidRefreshToken() error {
 }
 
 func (s *AuthSteps) iHaveExpiredRefreshToken() error {
-	// Set up expired refresh token for testing
-	// For now, just use a token that will be invalid
-	// In a real scenario, this would be a properly formatted but expired JWT
-	return nil
+	// For testing an expired refresh token, we'll use a token that's either:
+	// 1. Malformed/invalid
+	// 2. A token that was generated in the past and is now expired
+	// For simplicity, we'll use a malformed token that will be rejected
+
+	// Make a POST request with an invalid/expired refresh token
+	refreshData := map[string]string{
+		"refresh_token": "expired.or.invalid.token",
+	}
+
+	return s.client.Post("/users/refresh", refreshData)
 }
 
 func (s *AuthSteps) iHaveValidAccessToken() error {
