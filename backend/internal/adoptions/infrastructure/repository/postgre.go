@@ -30,7 +30,7 @@ func (r *PostgresRepository) Save(adoption *models.Adoption) error {
 
 	query := `INSERT INTO adoptions (id, pet_id, user_id, status, created, updated, documents) 
               VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	
+
 	_, err = r.db.Exec(
 		query,
 		adoption.ID,
@@ -78,7 +78,7 @@ func (r *PostgresRepository) FindByID(id string) (*models.Adoption, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	adoption.Documents = documents
 
 	return &adoption, nil
@@ -123,7 +123,7 @@ func (r *PostgresRepository) FindByUserID(userID string) ([]*models.Adoption, er
 		if err != nil {
 			return nil, err
 		}
-		
+
 		adoption.Documents = documents
 		adoptions = append(adoptions, &adoption)
 	}
@@ -173,7 +173,7 @@ func (r *PostgresRepository) FindAll() ([]*models.Adoption, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		adoption.Documents = documents
 		adoptions = append(adoptions, &adoption)
 	}
@@ -194,7 +194,7 @@ func (r *PostgresRepository) Update(adoption *models.Adoption) error {
 
 	query := `UPDATE adoptions SET pet_id = $1, user_id = $2, status = $3, updated = $4, documents = $5
               WHERE id = $6`
-	
+
 	_, err = r.db.Exec(
 		query,
 		adoption.PetID,

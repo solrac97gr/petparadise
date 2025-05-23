@@ -25,6 +25,6 @@ func SetupDatabase(db *sqlx.DB) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }

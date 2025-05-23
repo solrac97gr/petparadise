@@ -31,17 +31,17 @@ func main() {
 		appLogger.Fatal("Failed to connect to database: " + err.Error())
 	}
 	defer db.Close()
-	
+
 	// Verify database connection
 	if err = db.Ping(); err != nil {
 		appLogger.Fatal("Failed to ping database: " + err.Error())
 	}
-	
+
 	// Setup database tables
 	if err = database.SetupDatabase(db); err != nil {
 		appLogger.Fatal("Failed to setup database: " + err.Error())
 	}
-	
+
 	appLogger.Info("Connected to database")
 
 	// Initialize Fiber app

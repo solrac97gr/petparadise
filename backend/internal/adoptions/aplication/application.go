@@ -67,11 +67,11 @@ func (s *AdoptionService) UpdateAdoption(id string, status models.Status, docume
 	}
 
 	adoption.Status = status
-	
+
 	if documents != nil {
 		adoption.Documents = documents
 	}
-	
+
 	adoption.Updated = time.Now().Format(time.RFC3339)
 
 	err = s.repository.Update(adoption)
