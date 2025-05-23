@@ -12,6 +12,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	adoptionAPI "github.com/solrac97gr/petparadise/internal/adoptions/infrastructure/api"
+	donationAPI "github.com/solrac97gr/petparadise/internal/donations/infrastructure/api"
 	petAPI "github.com/solrac97gr/petparadise/internal/pets/infrastructure/api"
 	"github.com/solrac97gr/petparadise/pkg/config"
 	"github.com/solrac97gr/petparadise/pkg/database"
@@ -91,9 +92,7 @@ func main() {
 
 	// Donations routes
 	donations := api.Group("/donations")
-	donations.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"message": "Get all donations endpoint"})
-	})
+	donationAPI.SetupDonationRoutes(donations, db)
 
 	// Start server
 	serverPort := strconv.Itoa(cfg.ServerPort)
