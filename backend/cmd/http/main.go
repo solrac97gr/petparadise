@@ -9,7 +9,11 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberLogger "github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	adoptionAPI "github.com/solrac97gr/petparadise/internal/adoptions/infrastructure/api"
 	"github.com/solrac97gr/petparadise/pkg/config"
+	"github.com/solrac97gr/petparadise/pkg/database"
 	"github.com/solrac97gr/petparadise/pkg/logger"
 )
 
@@ -20,6 +24,25 @@ func main() {
 	// Initialize logger
 	appLogger := logger.New(cfg.LogLevel)
 	defer appLogger.Sync()
+
+	// Connect to the database
+	db, err := sqlx.Connect("postgres", cfg.DatabaseURL)
+	if err != nil {
+		appLogger.Fatal("Failed to connect to database: " + err.Error())
+	}
+	defer db.Close()
+	
+	// Verify database connection
+	if err = db.Ping(); err != nil {
+		appLogger.Fatal("Failed to ping database: " + err.Error())
+	}
+	
+	// Setup database tables
+	if err = database.SetupDatabase(db); err != nil {
+		appLogger.Fatal("Failed to setup database: " + err.Error())
+	}
+	
+	appLogger.Info("Connected to database")
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -48,7 +71,7 @@ func main() {
 		})
 	})
 
-	// API routes - would be connected to the proper handlers
+	// API routes
 	api := app.Group("/api")
 
 	// Users routes
@@ -65,9 +88,7 @@ func main() {
 
 	// Adoptions routes
 	adoptions := api.Group("/adoptions")
-	adoptions.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"message": "Get all adoptions endpoint"})
-	})
+	adoptionAPI.SetupAdoptionRoutes(adoptions, db)
 
 	// Donations routes
 	donations := api.Group("/donations")

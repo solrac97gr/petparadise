@@ -23,11 +23,12 @@ services:
     depends_on:
       - db
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=petparadise
+      - SERVER_PORT=3000
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/petparadise?sslmode=disable
+      - JWT_SECRET=your-secret-key-change-in-production
+      - LOG_LEVEL=info
+      - ENVIRONMENT=production
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000
     networks:
       - pet-paradise-network
 
@@ -50,3 +51,4 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
