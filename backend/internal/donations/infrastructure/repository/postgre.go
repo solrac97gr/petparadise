@@ -24,7 +24,7 @@ func NewPostgresRepository(db *sqlx.DB) *PostgresRepository {
 func (r *PostgresRepository) Save(donation *models.Donation) error {
 	query := `INSERT INTO donations (id, user_id, amount, status, created, updated, comment, anonymous) 
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	
+
 	_, err := r.db.Exec(
 		query,
 		donation.ID,
@@ -160,7 +160,7 @@ func (r *PostgresRepository) FindAll() ([]*models.Donation, error) {
 func (r *PostgresRepository) Update(donation *models.Donation) error {
 	query := `UPDATE donations SET user_id = $1, amount = $2, status = $3, updated = $4, 
               comment = $5, anonymous = $6 WHERE id = $7`
-	
+
 	_, err := r.db.Exec(
 		query,
 		donation.UserID,

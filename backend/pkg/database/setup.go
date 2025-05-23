@@ -49,7 +49,7 @@ func SetupDatabase(db *sqlx.DB) error {
 		return err
 	}
 
-	// Create donations table
+	// Create users table
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id UUID PRIMARY KEY,
@@ -59,11 +59,15 @@ func SetupDatabase(db *sqlx.DB) error {
 			role VARCHAR(20) NOT NULL,
 			status VARCHAR(20) NOT NULL,
 			created TIMESTAMP NOT NULL,
-			updated TIMESTAMP NOT NULL
+			updated TIMESTAMP NOT NULL,
+			address TEXT,
+			phone VARCHAR(20),
+			documents JSONB
 		);
 		
 		CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 		CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+		CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 	`)
 	if err != nil {
 		return err

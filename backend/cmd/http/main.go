@@ -14,6 +14,7 @@ import (
 	adoptionAPI "github.com/solrac97gr/petparadise/internal/adoptions/infrastructure/api"
 	donationAPI "github.com/solrac97gr/petparadise/internal/donations/infrastructure/api"
 	petAPI "github.com/solrac97gr/petparadise/internal/pets/infrastructure/api"
+	userAPI "github.com/solrac97gr/petparadise/internal/users/infrastructure/api"
 	"github.com/solrac97gr/petparadise/pkg/config"
 	"github.com/solrac97gr/petparadise/pkg/database"
 	"github.com/solrac97gr/petparadise/pkg/logger"
@@ -78,9 +79,7 @@ func main() {
 
 	// Users routes
 	users := api.Group("/users")
-	users.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"message": "Get all users endpoint"})
-	})
+	userAPI.SetupUserRoutes(users, db)
 
 	// Pets routes
 	pets := api.Group("/pets")
