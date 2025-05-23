@@ -31,7 +31,7 @@ type APIResponse struct {
 func NewAPIClient() *APIClient {
 	baseURL := os.Getenv("TEST_API_URL")
 	if baseURL == "" {
-		baseURL = "http://localhost:3001/api/users" // Default API URL for testing
+		baseURL = "http://localhost:3001/api" // Default API URL for testing
 	}
 
 	return &APIClient{

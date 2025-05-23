@@ -53,7 +53,7 @@ func (s *UserSteps) iAmAuthenticatedAs(role string) error {
 		"password": "password123",
 	}
 
-	err := s.client.Post("/login", loginData)
+	err := s.client.Post("/users/login", loginData)
 	if err != nil {
 		return err
 	}
@@ -111,18 +111,18 @@ func (s *UserSteps) iCreateANewUser(name, email, password string) error {
 		"role":     "user", // Default role
 	}
 
-	return s.client.Post("/register", userData)
+	return s.client.Post("/users/register", userData)
 }
 
 func (s *UserSteps) iGetUserDetailsForID(id string) error {
 	if id == "" {
-		return s.client.Get("/")
+		return s.client.Get("/users/")
 	}
-	return s.client.Get(fmt.Sprintf("/%s", id))
+	return s.client.Get(fmt.Sprintf("/users/%s", id))
 }
 
 func (s *UserSteps) iGetUserDetailsForEmail(email string) error {
-	return s.client.Get(fmt.Sprintf("/email?email=%s", email))
+	return s.client.Get(fmt.Sprintf("/users/email?email=%s", email))
 }
 
 func (s *UserSteps) iUpdateUserWithName(id, name string) error {
@@ -130,7 +130,7 @@ func (s *UserSteps) iUpdateUserWithName(id, name string) error {
 		"name": name,
 	}
 
-	return s.client.Put(fmt.Sprintf("/%s", id), userData)
+	return s.client.Put(fmt.Sprintf("/users/%s", id), userData)
 }
 
 func (s *UserSteps) iUpdateUserRoleTo(id, role string) error {
@@ -138,7 +138,7 @@ func (s *UserSteps) iUpdateUserRoleTo(id, role string) error {
 		"role": role,
 	}
 
-	return s.client.Patch(fmt.Sprintf("/%s/role", id), roleData)
+	return s.client.Patch(fmt.Sprintf("/users/%s/role", id), roleData)
 }
 
 func (s *UserSteps) iUpdateUserStatusTo(id, status string) error {
@@ -146,7 +146,7 @@ func (s *UserSteps) iUpdateUserStatusTo(id, status string) error {
 		"status": status,
 	}
 
-	return s.client.Patch(fmt.Sprintf("/%s/status", id), statusData)
+	return s.client.Patch(fmt.Sprintf("/users/%s/status", id), statusData)
 }
 
 func (s *UserSteps) iChangePasswordForUser(id, oldPassword, newPassword string) error {
@@ -155,11 +155,11 @@ func (s *UserSteps) iChangePasswordForUser(id, oldPassword, newPassword string) 
 		"new_password": newPassword,
 	}
 
-	return s.client.Post(fmt.Sprintf("/%s/password", id), passwordData)
+	return s.client.Post(fmt.Sprintf("/users/%s/password", id), passwordData)
 }
 
 func (s *UserSteps) iDeleteUser(id string) error {
-	return s.client.Delete(fmt.Sprintf("/%s", id))
+	return s.client.Delete(fmt.Sprintf("/users/%s", id))
 }
 
 // Then step implementations
@@ -267,7 +267,7 @@ func (s *UserSteps) iShouldSeeAListOfUsers() error {
 	}
 
 	respBody := s.client.GetResponseBody()
-	if respBody == nil || len(respBody) == 0 {
+	if len(respBody) == 0 {
 		return fmt.Errorf("response body is empty")
 	}
 

@@ -40,7 +40,7 @@ integration-test:
 integration-test-docker:
 	docker-compose -f backend/test/docker-compose.test.yml up -d --build
 	sleep 10
-	cd backend && TEST_DATABASE_URL=postgres://testuser:testpass@localhost:5433/petparadise_test?sslmode=disable TEST_API_URL=http://localhost:3001/api/users go test ./test/integration/... -v
+	cd backend && TEST_DATABASE_URL=postgres://testuser:testpass@localhost:5433/petparadise_test?sslmode=disable TEST_API_URL=http://localhost:3001/api go test ./test/integration/... -v
 	docker-compose -f backend/test/docker-compose.test.yml down
 
 integration-test-setup:

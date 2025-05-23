@@ -105,7 +105,7 @@ func (s *PetSteps) iShouldSeeListOfPets() error {
 	}
 
 	respBody := s.client.GetResponseBody()
-	if respBody == nil || len(respBody) == 0 {
+	if len(respBody) == 0 {
 		return fmt.Errorf("response body is empty")
 	}
 
