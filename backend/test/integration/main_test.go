@@ -113,6 +113,9 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	// Register step definitions for authentication
 	RegisterAuthenticationSteps(ctx, apiClient, testDB)
 
+	// Register step definitions for user management
+	RegisterUserSteps(ctx, apiClient, testDB)
+
 	// Add hooks for scenario setup/teardown
 	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
 		// Setup before each scenario
@@ -122,6 +125,14 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 
 	ctx.After(func(ctx context.Context, sc *godog.Scenario, err error) (context.Context, error) {
 		// Cleanup after each scenario
+		// Clear any authentication tokens from the API client
+		apiClient.SetAuthToken("")
+		
+		// Clean up test data from database to ensure scenario isolation
+		if testDB != nil {
+			testDB.Exec("TRUNCATE TABLE users CASCADE")
+		}
+		
 		return ctx, nil
 	})
 }

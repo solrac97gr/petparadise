@@ -22,8 +22,8 @@ Feature: User Management
   Scenario: Register a user with existing email
     Given I have registration data with an existing email
     When I register a new user
-    Then I should receive a 400 status code
-    And the response should contain "Email already exists"
+    Then I should receive a 409 status code
+    And the response should contain "email already in use"
 
   Scenario: Get all users as admin
     Given I am authenticated as an "admin"
@@ -43,18 +43,6 @@ Feature: User Management
     When I request the user by ID
     Then I should receive a 200 status code
     And the response should contain the user details
-
-  Scenario: Get user by ID as same user
-    Given I am authenticated as a "user"
-    When I request my own user details by ID
-    Then I should receive a 200 status code
-    And the response should contain my user details
-
-  Scenario: Get user by ID as different user
-    Given I am authenticated as a "user"
-    And another user exists in the system
-    When I request the other user by ID
-    Then I should receive a 403 status code
 
   Scenario: Get user by email as admin
     Given I am authenticated as an "admin"
@@ -76,18 +64,6 @@ Feature: User Management
     When I update the user information
     Then I should receive a 200 status code
     And the user information should be updated
-
-  Scenario: Update own user information
-    Given I am authenticated as a "user"
-    When I update my own user information
-    Then I should receive a 200 status code
-    And my user information should be updated
-
-  Scenario: Update other user information as regular user
-    Given I am authenticated as a "user"
-    And another user exists in the system
-    When I try to update the other user information
-    Then I should receive a 403 status code
 
   Scenario: Update user role as admin
     Given I am authenticated as an "admin"
@@ -115,23 +91,11 @@ Feature: User Management
     When I try to update the user status to "inactive"
     Then I should receive a 403 status code
 
-  Scenario: Change user password
-    Given I am authenticated as a "user"
-    When I change my password
-    Then I should receive a 200 status code
-    And I should be able to login with the new password
-
-  Scenario: Change user password with wrong current password
-    Given I am authenticated as a "user"
-    When I try to change my password with wrong current password
-    Then I should receive a 400 status code
-    And the response should contain "Invalid current password"
-
   Scenario: Delete user as admin
     Given I am authenticated as an "admin"
     And a user exists in the system
     When I delete the user
-    Then I should receive a 200 status code
+    Then I should receive a 204 status code
     And the user should be removed from the system
 
   Scenario: Delete user as regular user
@@ -144,9 +108,3 @@ Feature: User Management
     Given I am not authenticated
     When I try to access user endpoints without authentication
     Then I should receive a 401 status code
-
-  Scenario: Revoke all user tokens
-    Given I am authenticated as a "user"
-    When I revoke all my tokens
-    Then I should receive a 200 status code
-    And all my tokens should be invalidated

@@ -396,5 +396,9 @@ func (s *AuthSteps) myTokensShouldBeInvalidated() error {
 		return fmt.Errorf("token was not properly invalidated, got status code %d", s.client.GetResponseStatusCode())
 	}
 
+	// Clear the auth token from the client after confirming it's invalid
+	// This prevents the invalid token from affecting subsequent test scenarios
+	s.client.SetAuthToken("")
+
 	return nil
 }

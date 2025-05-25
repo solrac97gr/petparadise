@@ -34,9 +34,11 @@ func SetupUserRoutes(router fiber.Router, db *sqlx.DB) {
 
 	// User management routes (protected)
 	protectedRoutes.Get("/", userHandler.GetAllUsers)
-	protectedRoutes.Get("/:id", userHandler.GetUserByID)
+	// Specific routes MUST come before parameterized routes
 	protectedRoutes.Get("/email", userHandler.GetUserByEmail)
 	protectedRoutes.Get("/status", userHandler.GetUsersByStatus)
+	// Parameterized routes come after specific routes
+	protectedRoutes.Get("/:id", userHandler.GetUserByID)
 	protectedRoutes.Put("/:id", userHandler.UpdateUser)
 
 	// Admin only routes

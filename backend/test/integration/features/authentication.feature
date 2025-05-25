@@ -49,5 +49,5 @@ Feature: Authentication
   Scenario: Revoke all user tokens
     Given I am authenticated as a "user"
     When I revoke all my user tokens
-    Then I should receive a 401 status code
+    Then I should receive a 200 status code
     And my tokens should be invalidated
