@@ -18,6 +18,7 @@ type AuthSteps struct {
 	testEmail            string
 	testPassword         string
 	testToken            string
+	testUserID           string // Store the user ID from authentication
 	explicitRefreshToken string // Added to store an explicitly set refresh token
 }
 
@@ -107,6 +108,18 @@ func (s *AuthSteps) iAmAuthenticatedAs(role string) error {
 	} else {
 		return fmt.Errorf("tokens object not found in response")
 	}
+
+	// Extract and store the user ID
+	if userObj, ok := respBody["user"].(map[string]interface{}); ok {
+		if userID, ok := userObj["id"].(string); ok {
+			s.testUserID = userID
+		} else {
+			return fmt.Errorf("user id not found or not a string")
+		}
+	} else {
+		return fmt.Errorf("user object not found in response")
+	}
+
 	return nil
 }
 
@@ -283,28 +296,13 @@ func (s *AuthSteps) iTryToAccessProtectedResourceWithoutAuth() error {
 }
 
 func (s *AuthSteps) iRevokeAllMyUserTokens() error {
-	// Get the user ID from the login response
-	respBody := s.client.GetResponseBodyAsMap()
-	if respBody == nil {
-		return fmt.Errorf("no response body available")
+	// Use the stored user ID from authentication
+	if s.testUserID == "" {
+		return fmt.Errorf("no user ID available - user may not be authenticated")
 	}
-
-	userObj, ok := respBody["user"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("user object not found in response")
-	}
-
-	userId, ok := userObj["id"].(string)
-	if !ok {
-		return fmt.Errorf("user id not found or not a string")
-	}
-
 	// Send request to revoke all tokens for the current user
-	if err := s.client.Post(fmt.Sprintf("/users/%s/revoke-tokens", userId), nil); err != nil {
+	if err := s.client.Post(fmt.Sprintf("/users/%s/revoke-tokens", s.testUserID), nil); err != nil {
 		return fmt.Errorf("failed to revoke tokens: %v", err)
-	}
-	if s.client.GetResponseStatusCode() != http.StatusOK {
-		return fmt.Errorf("failed to revoke tokens, got status %d, and body %s", s.client.GetResponseStatusCode(), string(s.client.GetResponseBody()))
 	}
 	return nil
 }

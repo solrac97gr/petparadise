@@ -31,13 +31,15 @@ var jwtSecret []byte
 // TokenBlacklist stores revoked tokens
 type TokenBlacklist struct {
 	tokens        map[string]time.Time // token -> expiration time
+	userTokens    map[string][]string  // userID -> list of token strings
 	mu            sync.RWMutex
 	cleanupTicker *time.Ticker
 }
 
 // Global token blacklist
 var blacklist = &TokenBlacklist{
-	tokens: make(map[string]time.Time),
+	tokens:     make(map[string]time.Time),
+	userTokens: make(map[string][]string),
 }
 
 // InitJWTSecret initializes the JWT secret from config
@@ -99,6 +101,9 @@ func GenerateTokenPair(user *models.User) (*TokenPair, error) {
 		return nil, err
 	}
 
+	// Track tokens for this user
+	trackUserTokens(user.ID, accessToken, refreshToken)
+
 	return &TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -155,6 +160,38 @@ func generateRefreshToken(userID, tokenID string) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+// trackUserTokens adds tokens to the user tracking map
+func trackUserTokens(userID string, tokens ...string) {
+	blacklist.mu.Lock()
+	defer blacklist.mu.Unlock()
+
+	if blacklist.userTokens[userID] == nil {
+		blacklist.userTokens[userID] = make([]string, 0)
+	}
+
+	blacklist.userTokens[userID] = append(blacklist.userTokens[userID], tokens...)
+}
+
+// removeUserToken removes a specific token from user tracking
+func removeUserToken(userID, token string) {
+	blacklist.mu.Lock()
+	defer blacklist.mu.Unlock()
+
+	tokens := blacklist.userTokens[userID]
+	for i, t := range tokens {
+		if t == token {
+			// Remove token from slice
+			blacklist.userTokens[userID] = append(tokens[:i], tokens[i+1:]...)
+			break
+		}
+	}
+
+	// Clean up empty slice
+	if len(blacklist.userTokens[userID]) == 0 {
+		delete(blacklist.userTokens, userID)
+	}
 }
 
 // ValidateAccessToken validates a JWT access token and returns the claims
@@ -266,25 +303,87 @@ func RevokeToken(token string, expiresAt time.Time) {
 	blacklist.mu.Lock()
 	blacklist.tokens[token] = expiresAt
 	blacklist.mu.Unlock()
+
+	// Also remove from user tracking by finding which user owns this token
+	blacklist.mu.RLock()
+	for userID, userTokens := range blacklist.userTokens {
+		for _, userToken := range userTokens {
+			if userToken == token {
+				blacklist.mu.RUnlock()
+				removeUserToken(userID, token)
+				return
+			}
+		}
+	}
+	blacklist.mu.RUnlock()
 }
 
 // RevokeAllUserTokens revokes all tokens for a specific user
-// This is a simplified implementation that would need to be enhanced
-// in a production environment with a database storage for tokens
 func RevokeAllUserTokens(userID string) {
-	// In a real implementation, this would:
-	// 1. Query a database for all valid tokens associated with this user
-	// 2. Add each token to the blacklist
+	blacklist.mu.Lock()
+	defer blacklist.mu.Unlock()
 
-	// For now, we just log that this action was requested
-	log.Printf("RevokeAllUserTokens requested for user ID: %s", userID)
-	log.Printf("Note: Full implementation requires token storage in database")
+	// Get all tokens for this user
+	userTokens, exists := blacklist.userTokens[userID]
+	if !exists || len(userTokens) == 0 {
+		log.Printf("No active tokens found for user ID: %s", userID)
+		return
+	}
+
+	revokedCount := 0
+	now := time.Now()
+
+	// Add all user tokens to blacklist
+	for _, token := range userTokens {
+		// Parse token to get expiration time for proper blacklist management
+		expirationTime := getTokenExpiration(token)
+		if expirationTime.IsZero() {
+			// If we can't parse the token, use a default future expiration
+			expirationTime = now.Add(RefreshTokenExpiration)
+		}
+
+		// Only blacklist if not already expired
+		if expirationTime.After(now) {
+			blacklist.tokens[token] = expirationTime
+			revokedCount++
+		}
+	}
+
+	// Clear user's token list
+	delete(blacklist.userTokens, userID)
+
+	log.Printf("Successfully revoked %d active tokens for user ID: %s", revokedCount, userID)
+}
+
+// getTokenExpiration extracts expiration time from a token string
+func getTokenExpiration(tokenString string) time.Time {
+	// Try to parse as access token first
+	if token, err := jwt.ParseWithClaims(tokenString, &AccessClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	}); err == nil {
+		if claims, ok := token.Claims.(*AccessClaims); ok {
+			return claims.ExpiresAt.Time
+		}
+	}
+
+	// Try to parse as refresh token
+	if token, err := jwt.ParseWithClaims(tokenString, &RefreshClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	}); err == nil {
+		if claims, ok := token.Claims.(*RefreshClaims); ok {
+			return claims.ExpiresAt.Time
+		}
+	}
+
+	// Return zero time if parsing fails
+	return time.Time{}
 }
 
 // cleanupExpiredTokens removes expired tokens from the blacklist
 func cleanupExpiredTokens() {
 	now := time.Now()
 	count := 0
+	var expiredTokens []string
 
 	blacklist.mu.Lock()
 	defer blacklist.mu.Unlock()
@@ -292,11 +391,39 @@ func cleanupExpiredTokens() {
 	// Count tokens before cleanup
 	tokensBeforeCleanup := len(blacklist.tokens)
 
-	// Remove expired tokens
+	// Collect expired tokens
 	for token, expiry := range blacklist.tokens {
 		if now.After(expiry) {
-			delete(blacklist.tokens, token)
+			expiredTokens = append(expiredTokens, token)
 			count++
+		}
+	}
+
+	// Remove expired tokens from blacklist
+	for _, token := range expiredTokens {
+		delete(blacklist.tokens, token)
+	}
+
+	// Remove expired tokens from user tracking
+	for userID, userTokens := range blacklist.userTokens {
+		var activeTokens []string
+		for _, token := range userTokens {
+			expired := false
+			for _, expiredToken := range expiredTokens {
+				if token == expiredToken {
+					expired = true
+					break
+				}
+			}
+			if !expired {
+				activeTokens = append(activeTokens, token)
+			}
+		}
+
+		if len(activeTokens) == 0 {
+			delete(blacklist.userTokens, userID)
+		} else {
+			blacklist.userTokens[userID] = activeTokens
 		}
 	}
 
