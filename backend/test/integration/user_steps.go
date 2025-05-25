@@ -12,18 +12,18 @@ import (
 
 // UserSteps contains user management test steps
 type UserSteps struct {
-	client                *APIClient
-	db                    *sqlx.DB
-	testUser              map[string]interface{}
-	anotherTestUser       map[string]interface{}
-	registrationData      map[string]interface{}
-	registrationValid     bool
-	testUserID            string
-	anotherTestUserID     string
-	updateData            map[string]interface{}
-	originalPassword      string
-	newPassword           string
-	wrongCurrentPassword  string
+	client               *APIClient
+	db                   *sqlx.DB
+	testUser             map[string]interface{}
+	anotherTestUser      map[string]interface{}
+	registrationData     map[string]interface{}
+	registrationValid    bool
+	testUserID           string
+	anotherTestUserID    string
+	updateData           map[string]interface{}
+	originalPassword     string
+	newPassword          string
+	wrongCurrentPassword string
 }
 
 // RegisterUserSteps registers step definitions for user management scenarios
@@ -79,12 +79,12 @@ func (s *UserSteps) theSystemIsInitialized() error {
 func (s *UserSteps) iHaveValidRegistrationData() error {
 	randomUUID := uuid.New().String()
 	s.registrationData = map[string]interface{}{
-		"name":     "Test User",
-		"email":    "testuser" + randomUUID + "@example.com",
-		"password": "password123",
-		"role":     "user",
-		"address":  "123 Test Street",
-		"phone":    "+1234567890",
+		"name":      "Test User",
+		"email":     "testuser" + randomUUID + "@example.com",
+		"password":  "password123",
+		"role":      "user",
+		"address":   "123 Test Street",
+		"phone":     "+1234567890",
 		"documents": []string{"doc1.pdf", "doc2.pdf"},
 	}
 	s.registrationValid = true
@@ -105,7 +105,7 @@ func (s *UserSteps) iHaveRegistrationDataWithExistingEmail() error {
 	// First, create a user
 	randomUUID := uuid.New().String()
 	existingEmail := "existing" + randomUUID + "@example.com"
-	
+
 	err := s.client.Post("/users/register", map[string]interface{}{
 		"name":     "Existing User",
 		"email":    existingEmail,
@@ -238,6 +238,7 @@ func (s *UserSteps) iRegisterANewUser() error {
 }
 
 func (s *UserSteps) iRequestAllUsers() error {
+	s.client.SetAuthToken(s.client.AuthToken)
 	return s.client.Get("/users/")
 }
 
@@ -254,7 +255,7 @@ func (s *UserSteps) iRequestMyOwnUserDetailsByID() error {
 	// For now, let's assume we can get it from the last authentication response
 	respBody := s.client.GetResponseBodyAsMap()
 	var userID string
-	
+
 	if respBody != nil {
 		if userObj, ok := respBody["user"].(map[string]interface{}); ok {
 			if id, ok := userObj["id"].(string); ok {
@@ -262,7 +263,7 @@ func (s *UserSteps) iRequestMyOwnUserDetailsByID() error {
 			}
 		}
 	}
-	
+
 	// If we don't have a user ID from response, we might need to get it differently
 	// For testing purposes, let's use the authenticated user's info
 	if userID == "" {
@@ -275,7 +276,7 @@ func (s *UserSteps) iRequestMyOwnUserDetailsByID() error {
 		// For now, we'll just use the first available user ID
 		return fmt.Errorf("unable to get current user ID - this needs proper implementation")
 	}
-	
+
 	return s.client.Get("/users/" + userID)
 }
 
@@ -316,7 +317,7 @@ func (s *UserSteps) iUpdateMyOwnUserInformation() error {
 	// For this scenario, we need to get the current user's ID from the authentication context
 	// Since the API requires user ID in the path, we need to extract it
 	// This would typically be extracted from the JWT token or stored during login
-	
+
 	s.updateData = map[string]interface{}{
 		"name":    "Updated My User",
 		"address": "789 My Updated Street",
@@ -327,7 +328,7 @@ func (s *UserSteps) iUpdateMyOwnUserInformation() error {
 	// For now, let's assume we can get it from the current auth context
 	// In a real scenario, you'd get the user ID from the JWT token
 	// For testing, we'll need to extract it from the login response
-	
+
 	// This is a placeholder - in reality you'd extract from JWT or have a /users/me endpoint
 	return fmt.Errorf("this scenario needs a /users/me endpoint or JWT parsing implementation")
 }
@@ -508,7 +509,7 @@ func (s *UserSteps) theResponseShouldContainAListOfUsers() error {
 		if err := json.Unmarshal(respBody, &wrapper); err != nil {
 			return fmt.Errorf("response is not valid JSON")
 		}
-		
+
 		if usersArray, ok := wrapper["users"].([]interface{}); ok {
 			users = usersArray
 		} else {

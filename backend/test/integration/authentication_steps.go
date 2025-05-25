@@ -366,7 +366,7 @@ func (s *AuthSteps) iShouldReceiveAuthenticationError() error {
 
 func (s *AuthSteps) iShouldReceiveStatusCode(code int) error {
 	if s.client.GetResponseStatusCode() != code {
-		return fmt.Errorf("expected status code %d, got %d", code, s.client.GetResponseStatusCode())
+		return fmt.Errorf("expected status code %d, got %d, with body: %s", code, s.client.GetResponseStatusCode(), string(s.client.GetResponseBody()))
 	}
 	return nil
 }

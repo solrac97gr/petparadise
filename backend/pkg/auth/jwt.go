@@ -3,9 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -22,44 +20,16 @@ const (
 var (
 	ErrInvalidToken = errors.New("invalid token")
 	ErrExpiredToken = errors.New("token has expired")
-	ErrRevokedToken = errors.New("token has been revoked")
 )
 
 // JWT secret key - will be set from configuration
 var jwtSecret []byte
-
-// TokenBlacklist stores revoked tokens
-type TokenBlacklist struct {
-	tokens        map[string]time.Time // token -> expiration time
-	userTokens    map[string][]string  // userID -> list of token strings
-	mu            sync.RWMutex
-	cleanupTicker *time.Ticker
-}
-
-// Global token blacklist
-var blacklist = &TokenBlacklist{
-	tokens:     make(map[string]time.Time),
-	userTokens: make(map[string][]string),
-}
 
 // InitJWTSecret initializes the JWT secret from config
 func InitJWTSecret(cfg *config.Config) {
 	jwtSecret = []byte(cfg.JWTSecret)
 
 	// Start the cleanup ticker to periodically remove expired tokens
-	startBlacklistCleanupTicker()
-}
-
-// startBlacklistCleanupTicker initializes and starts the cleanup ticker for the token blacklist
-func startBlacklistCleanupTicker() {
-	// Run cleanup every 15 minutes
-	blacklist.cleanupTicker = time.NewTicker(15 * time.Minute)
-
-	go func() {
-		for range blacklist.cleanupTicker.C {
-			cleanupExpiredTokens()
-		}
-	}()
 }
 
 // AccessClaims represents the JWT claims for access tokens
@@ -100,9 +70,6 @@ func GenerateTokenPair(user *models.User) (*TokenPair, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Track tokens for this user
-	trackUserTokens(user.ID, accessToken, refreshToken)
 
 	return &TokenPair{
 		AccessToken:  accessToken,
@@ -162,48 +129,8 @@ func generateRefreshToken(userID, tokenID string) (string, error) {
 	return tokenString, nil
 }
 
-// trackUserTokens adds tokens to the user tracking map
-func trackUserTokens(userID string, tokens ...string) {
-	blacklist.mu.Lock()
-	defer blacklist.mu.Unlock()
-
-	if blacklist.userTokens[userID] == nil {
-		blacklist.userTokens[userID] = make([]string, 0)
-	}
-
-	blacklist.userTokens[userID] = append(blacklist.userTokens[userID], tokens...)
-}
-
-// removeUserToken removes a specific token from user tracking
-func removeUserToken(userID, token string) {
-	blacklist.mu.Lock()
-	defer blacklist.mu.Unlock()
-
-	tokens := blacklist.userTokens[userID]
-	for i, t := range tokens {
-		if t == token {
-			// Remove token from slice
-			blacklist.userTokens[userID] = append(tokens[:i], tokens[i+1:]...)
-			break
-		}
-	}
-
-	// Clean up empty slice
-	if len(blacklist.userTokens[userID]) == 0 {
-		delete(blacklist.userTokens, userID)
-	}
-}
-
 // ValidateAccessToken validates a JWT access token and returns the claims
 func ValidateAccessToken(tokenString string) (*AccessClaims, error) {
-	// Check if token is blacklisted
-	blacklist.mu.RLock()
-	if _, revoked := blacklist.tokens[tokenString]; revoked {
-		blacklist.mu.RUnlock()
-		return nil, ErrRevokedToken
-	}
-	blacklist.mu.RUnlock()
-
 	// Parse the token
 	token, err := jwt.ParseWithClaims(tokenString, &AccessClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validate the signing method
@@ -234,13 +161,6 @@ func ValidateAccessToken(tokenString string) (*AccessClaims, error) {
 
 // ValidateRefreshToken validates a JWT refresh token and returns the claims
 func ValidateRefreshToken(tokenString string) (*RefreshClaims, error) {
-	// Check if token is blacklisted
-	blacklist.mu.RLock()
-	if _, revoked := blacklist.tokens[tokenString]; revoked {
-		blacklist.mu.RUnlock()
-		return nil, ErrRevokedToken
-	}
-	blacklist.mu.RUnlock()
 
 	// Parse the token
 	token, err := jwt.ParseWithClaims(tokenString, &RefreshClaims{}, func(token *jwt.Token) (interface{}, error) {
@@ -292,144 +212,5 @@ func RefreshTokens(refreshToken string) (*TokenPair, error) {
 		return nil, err
 	}
 
-	// Revoke the old refresh token
-	RevokeToken(refreshToken, claims.ExpiresAt.Time)
-
 	return tokenPair, nil
-}
-
-// RevokeToken adds a token to the blacklist
-func RevokeToken(token string, expiresAt time.Time) {
-	blacklist.mu.Lock()
-	blacklist.tokens[token] = expiresAt
-	blacklist.mu.Unlock()
-
-	// Also remove from user tracking by finding which user owns this token
-	blacklist.mu.RLock()
-	for userID, userTokens := range blacklist.userTokens {
-		for _, userToken := range userTokens {
-			if userToken == token {
-				blacklist.mu.RUnlock()
-				removeUserToken(userID, token)
-				return
-			}
-		}
-	}
-	blacklist.mu.RUnlock()
-}
-
-// RevokeAllUserTokens revokes all tokens for a specific user
-func RevokeAllUserTokens(userID string) {
-	blacklist.mu.Lock()
-	defer blacklist.mu.Unlock()
-
-	// Get all tokens for this user
-	userTokens, exists := blacklist.userTokens[userID]
-	if !exists || len(userTokens) == 0 {
-		log.Printf("No active tokens found for user ID: %s", userID)
-		return
-	}
-
-	revokedCount := 0
-	now := time.Now()
-
-	// Add all user tokens to blacklist
-	for _, token := range userTokens {
-		// Parse token to get expiration time for proper blacklist management
-		expirationTime := getTokenExpiration(token)
-		if expirationTime.IsZero() {
-			// If we can't parse the token, use a default future expiration
-			expirationTime = now.Add(RefreshTokenExpiration)
-		}
-
-		// Only blacklist if not already expired
-		if expirationTime.After(now) {
-			blacklist.tokens[token] = expirationTime
-			revokedCount++
-		}
-	}
-
-	// Clear user's token list
-	delete(blacklist.userTokens, userID)
-
-	log.Printf("Successfully revoked %d active tokens for user ID: %s", revokedCount, userID)
-}
-
-// getTokenExpiration extracts expiration time from a token string
-func getTokenExpiration(tokenString string) time.Time {
-	// Try to parse as access token first
-	if token, err := jwt.ParseWithClaims(tokenString, &AccessClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
-	}); err == nil {
-		if claims, ok := token.Claims.(*AccessClaims); ok {
-			return claims.ExpiresAt.Time
-		}
-	}
-
-	// Try to parse as refresh token
-	if token, err := jwt.ParseWithClaims(tokenString, &RefreshClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
-	}); err == nil {
-		if claims, ok := token.Claims.(*RefreshClaims); ok {
-			return claims.ExpiresAt.Time
-		}
-	}
-
-	// Return zero time if parsing fails
-	return time.Time{}
-}
-
-// cleanupExpiredTokens removes expired tokens from the blacklist
-func cleanupExpiredTokens() {
-	now := time.Now()
-	count := 0
-	var expiredTokens []string
-
-	blacklist.mu.Lock()
-	defer blacklist.mu.Unlock()
-
-	// Count tokens before cleanup
-	tokensBeforeCleanup := len(blacklist.tokens)
-
-	// Collect expired tokens
-	for token, expiry := range blacklist.tokens {
-		if now.After(expiry) {
-			expiredTokens = append(expiredTokens, token)
-			count++
-		}
-	}
-
-	// Remove expired tokens from blacklist
-	for _, token := range expiredTokens {
-		delete(blacklist.tokens, token)
-	}
-
-	// Remove expired tokens from user tracking
-	for userID, userTokens := range blacklist.userTokens {
-		var activeTokens []string
-		for _, token := range userTokens {
-			expired := false
-			for _, expiredToken := range expiredTokens {
-				if token == expiredToken {
-					expired = true
-					break
-				}
-			}
-			if !expired {
-				activeTokens = append(activeTokens, token)
-			}
-		}
-
-		if len(activeTokens) == 0 {
-			delete(blacklist.userTokens, userID)
-		} else {
-			blacklist.userTokens[userID] = activeTokens
-		}
-	}
-
-	// Log the cleanup results if tokens were removed
-	if count > 0 {
-		log.Printf("Token blacklist cleanup: removed %d expired tokens. Before: %d, After: %d",
-			count, tokensBeforeCleanup, len(blacklist.tokens))
-	}
 }

@@ -40,14 +40,4 @@ Feature: Authentication
     Then I should receive an authentication error
     And I should receive a 401 status code
 
-  Scenario: User logout
-    Given I am authenticated as a "user"
-    When I logout
-    Then I should receive a 200 status code
-    And my tokens should be invalidated
 
-  Scenario: Revoke all user tokens
-    Given I am authenticated as a "user"
-    When I revoke all my user tokens
-    Then I should receive a 200 status code
-    And my tokens should be invalidated

@@ -37,10 +37,7 @@ func Protected() fiber.Handler {
 
 			if err == ErrExpiredToken {
 				errorMsg = "Token has expired"
-			} else if err == ErrRevokedToken {
-				errorMsg = "Token has been revoked"
 			}
-
 			return c.Status(status).JSON(fiber.Map{
 				"error": errorMsg,
 				"code":  "token_invalid",

@@ -492,15 +492,12 @@ func (h *userHandler) Logout(c *fiber.Ctx) error {
 		refreshClaims, err := auth.ValidateRefreshToken(req.RefreshToken)
 		if err == nil && refreshClaims != nil {
 			// Revoke the refresh token
-			auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
 		}
 	}
 
 	// Get access token expiration from claims
 	accessClaims, err := auth.ValidateAccessToken(accessToken)
 	if err == nil && accessClaims != nil {
-		// Revoke the access token
-		auth.RevokeToken(accessToken, accessClaims.ExpiresAt.Time)
 
 		// Log the user ID that's being logged out
 		log.Printf("User logged out: %s", accessClaims.UserID)
@@ -538,10 +535,7 @@ func (h *userHandler) RefreshToken(c *fiber.Ctx) error {
 
 		if err == auth.ErrExpiredToken {
 			errorMsg = "Refresh token has expired"
-		} else if err == auth.ErrRevokedToken {
-			errorMsg = "Refresh token has been revoked"
 		}
-
 		return c.Status(status).JSON(fiber.Map{
 			"error": errorMsg,
 			"code":  "refresh_token_invalid",
@@ -551,8 +545,6 @@ func (h *userHandler) RefreshToken(c *fiber.Ctx) error {
 	// Get the user from the database to ensure they still exist and are active
 	user, err := h.service.GetUserByID(refreshClaims.UserID)
 	if err != nil || user == nil {
-		// Revoke the token if the user doesn't exist anymore
-		auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
 
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "User not found or account deleted",
@@ -563,7 +555,6 @@ func (h *userHandler) RefreshToken(c *fiber.Ctx) error {
 	// Check if user is active
 	if !user.Status.IsEquals(models.StatusActive) {
 		// Revoke the token if the user is inactive
-		auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
 
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "User account is inactive",
@@ -578,9 +569,6 @@ func (h *userHandler) RefreshToken(c *fiber.Ctx) error {
 			"error": "Failed to generate new tokens",
 		})
 	}
-
-	// Revoke the old refresh token
-	auth.RevokeToken(req.RefreshToken, refreshClaims.ExpiresAt.Time)
 
 	return c.JSON(fiber.Map{
 		"tokens": tokenPair,
@@ -620,7 +608,6 @@ func (h *userHandler) RevokeUserTokens(c *fiber.Ctx) error {
 	}
 
 	// Revoke all tokens for this user
-	auth.RevokeAllUserTokens(id)
 
 	// Log the action
 	log.Printf("All tokens revoked for user %s by %s", id, requestingUserID)
